@@ -6,6 +6,8 @@ const ejs = require("ejs");
 const path = require("path");
 const _ = require('lodash');
 const { truncate } = require("lodash");
+const mongoose = require('mongoose');
+mongoose.connect('mongodb://localhost:27017/blogDB');
 
 const homeStartingContent = "Lacus vel facilisis volutpat est velit egestas dui id ornare. Semper auctor neque vitae tempus quam. Sit amet cursus sit amet dictum sit amet justo. Viverra tellus in hac habitasse. Imperdiet proin fermentum leo vel orci porta. Donec ultrices tincidunt arcu non sodales neque sodales ut. Mattis molestie a iaculis at erat pellentesque adipiscing. Magnis dis parturient montes nascetur ridiculus mus mauris vitae ultricies. Adipiscing elit ut aliquam purus sit amet luctus venenatis lectus. Ultrices vitae auctor eu augue ut lectus arcu bibendum at. Odio euismod lacinia at quis risus sed vulputate odio ut. Cursus mattis molestie a iaculis at erat pellentesque adipiscing.";
 const aboutContent = "Hac habitasse platea dictumst vestibulum rhoncus est pellentesque. Dictumst vestibulum rhoncus est pellentesque elit ullamcorper. Non diam phasellus vestibulum lorem sed. Platea dictumst quisque sagittis purus sit. Egestas sed sed risus pretium quam vulputate dignissim suspendisse. Mauris in aliquam sem fringilla. Semper risus in hendrerit gravida rutrum quisque non tellus orci. Amet massa vitae tortor condimentum lacinia quis vel eros. Enim ut tellus elementum sagittis vitae. Mauris ultrices eros in cursus turpis massa tincidunt dui.";
@@ -14,62 +16,90 @@ const contactContent = "Scelerisque eleifend donec pretium vulputate sapien. Rho
 const app = express();
 app.set('view engine', 'ejs');
 
-app.use(bodyParser.urlencoded({extended: true}));
-const PublicPath = path.join(__dirname,"/../public"); 
-const AllPosts = [];
+app.use(bodyParser.urlencoded({ extended: true }));
+const PublicPath = path.join(__dirname, "/../public");
 app.use(express.static(PublicPath));
 
-app.get("/",(req,res)=>{
-    res.render("home",{
-        HomeContent : homeStartingContent,
-        Posts  :  AllPosts
+const blogSchema = mongoose.Schema({
+    title: String,
+    content: String
+})
+
+const blog = mongoose.model("blog", blogSchema);
+
+app.get("/", (req, res) => {
+    blog.find({}, function (err, docs) {
+        if (err)
+            console.log(err);
+        else {
+            res.render("home", {
+                HomeContent: homeStartingContent,
+                Posts: docs
+            });
+        }
+    })
+})
+
+app.get("/about", (req, res) => {
+    res.render("about", {
+        AboutContent: aboutContent
     });
 })
 
-app.get("/about",(req,res)=>{
-    res.render("about",{
-        AboutContent : aboutContent
+app.get("/contact", (req, res) => {
+    res.render("contact", {
+        ContactContent: contactContent
     });
 })
 
-app.get("/contact",(req,res)=>{
-    res.render("contact",{
-        ContactContent : contactContent
-    });
-})
-
-app.get("/compose",(req,res)=>{
+app.get("/compose", (req, res) => {
     res.render("compose");
 })
 
-app.post("/compose",(req,res)=>{
-    const post = {
-        Title : req.body.Post_Title,
-        Content : req.body.Post_Info,
+app.post("/compose", (req, res) => {
+    const post_title = _.toLower(req.body.Post_Title);
+    const post_content = req.body.Post_Info;
+    if (post_title === "") {
+        alert("Post Title cannot be empty");
+        res.redirect("/compose")
     }
-    AllPosts.push(post);
+    if (post_content === "") {
+        alert("Post Content cannot be empty");
+        res.redirect("/compose")
+    }
+    const post = new blog({
+        title: post_title,
+        content: post_content
+    })
+    post.save();
     res.redirect("/");
 })
 
-app.get("/posts/:topic",(req,res)=>{
-    for(let i = 0 ; i < AllPosts.length ; i++)
-    {
-        if(_.lowerCase(AllPosts[i].Title) === _.lowerCase(req.params.topic))
+app.get("/posts/:topic", (req, res) => {
+    const search = _.toLower(req.params.topic);
+    blog.findOne({title : search},function (err,docs) {
+        if(err)
+        console.log(err);
+        else
         {
+            if(docs == null)
+            {
+                res.send("Error 404 Page does not exists");
+                return ;
+            }
             res.render("post",{
-                NewPostTitle : AllPosts[i].Title,
-                NewPostContent : AllPosts[i].Content
-            });
-            return ;
+                NewPostTitle  : docs.title,
+                NewPostContent : docs.content
+            })
         }
-    }
+      })
+})
+
+app.get("*", (req, res) => {
     res.send("Error 404 Page does not exists");
 })
 
-app.get("*",(req,res)=>{
-    res.send("Error 404 Page does not exists");
-})
-
-app.listen(8000, function() {
-  console.log("Server started on port 8000");
+app.listen(8000, function () {
+    console.log("Server started on port 8000");
 });
+
